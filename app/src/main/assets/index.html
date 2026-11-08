@@ -48,6 +48,7 @@ label.opt{font-size:14px;margin-right:12px}
     <input id="mp2" type="password" placeholder="Repeat master password" autocomplete="off" class="hide">
     <div class="err" id="lockErr"></div>
     <button class="pri" id="lockBtn">Unlock</button>
+    <button class="ghost hide" id="bioBtn" style="width:100%;margin-top:8px">👆 Unlock with fingerprint</button>
     <p class="hint" id="lockNote"></p>
     <p class="hint" style="margin-top:14px;letter-spacing:1px"><b>KO</b> · by Khalid O</p>
   </div>
@@ -94,6 +95,7 @@ label.opt{font-size:14px;margin-right:12px}
       <button class="ghost" id="exportBtn">Export encrypted backup</button>
       <button class="ghost" id="importBtn">Import backup</button>
       <button class="ghost" id="chgBtn">Change master password</button>
+      <button class="ghost hide" id="bioToggle">Fingerprint unlock</button>
       <button class="ghost" id="lockNow">Lock now</button>
       <button class="danger" id="wipeBtn">Erase everything</button>
       <button class="ghost" id="menuClose">Close</button>
@@ -149,6 +151,7 @@ function showLock(){
   $('mp').value='';$('mp2').value='';$('lockErr').textContent='';
   const has=!!localStorage.getItem(KEY);
   $('mp2').classList.toggle('hide',has);
+  $('bioBtn').classList.toggle('hide',!(has&&bioOn()));
   $('lockTitle').textContent=has?'Safe':'Create your Safe';
   $('lockBtn').textContent=has?'Unlock':'Create';
   $('lockHint').textContent=has?'Enter your master password.':'Choose a strong master password.';
@@ -169,6 +172,7 @@ $('lockBtn').onclick=async()=>{
       cryptoKey=await derive(pw,salt);vault={items:[]};await save();
     }
     $('lockScreen').classList.add('hide');$('app').classList.remove('hide');
+    $('mp').value='';$('mp2').value='';
     render();bump();
   }catch(e){err.textContent='Wrong master password.'}
 };
@@ -248,7 +252,12 @@ $('genBtn').onclick=()=>{
 function closeModals(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'))}
 
 /* ---------- menu ---------- */
-$('menuBtn').onclick=()=>$('menuModal').classList.add('on');
+$('menuBtn').onclick=()=>{
+  const av=!!(window.Android&&Android.bioAvailable());
+  $('bioToggle').classList.toggle('hide',!av);
+  $('bioToggle').textContent=bioOn()?'Turn off fingerprint unlock':'Turn on fingerprint unlock';
+  $('menuModal').classList.add('on');
+};
 $('menuClose').onclick=closeModals;
 $('lockNow').onclick=showLock;
 $('exportBtn').onclick=async()=>{
@@ -296,15 +305,37 @@ $('chgBtn').onclick=async()=>{
   if(r[0].length<10){toast('Too short');return}
   if(r[0]!==r[1]){toast('Did not match');return}
   salt=crypto.getRandomValues(new Uint8Array(16));
-  cryptoKey=await derive(r[0],salt);await save();toast('Master password changed');
+  cryptoKey=await derive(r[0],salt);await save();
+  if(bioOn()){Android.bioDisable();toast('Master password changed — turn fingerprint on again')}else toast('Master password changed');
 };
 $('wipeBtn').onclick=()=>{
   if(confirm('Erase ALL saved passwords on this device? This cannot be undone.')&&confirm('Really erase everything?')){
-    localStorage.removeItem(KEY);showLock();
+    localStorage.removeItem(KEY);if(window.Android)Android.bioDisable();showLock();
   }
 };
 
+/* ---------- fingerprint (Android app only) ---------- */
+function bioOn(){return !!(window.Android&&Android.bioEnabled())}
+function autoBio(){
+  if(bioOn()&&!$('lockScreen').classList.contains('hide')&&localStorage.getItem(KEY))Android.bioUnlock();
+}
+window.bioPassword=pw=>{$('mp').value=pw;$('lockBtn').click()};
+window.bioDone=(kind,ok,msg)=>{
+  if(kind==='enable'){toast(ok?'Fingerprint unlock is on':(msg||'Fingerprint not turned on'))}
+  else if(kind==='invalid'){showLock();$('lockErr').textContent='Your fingerprints changed. Unlock with your master password, then turn fingerprint on again.'}
+  else if(kind==='unlock'&&msg){$('lockErr').textContent=msg}
+};
+$('bioBtn').onclick=()=>{if(bioOn())Android.bioUnlock()};
+$('bioToggle').onclick=async()=>{
+  if(bioOn()){Android.bioDisable();toast('Fingerprint unlock is off');closeModals();return}
+  const r=await ask('Turn on fingerprint','Confirm your master password');
+  if(!r)return;
+  try{await openBlob(JSON.parse(localStorage.getItem(KEY)),r[0])}catch(e){toast('Wrong master password');return}
+  Android.bioEnable(r[0]);
+};
+
 showLock();
+setTimeout(autoBio,400);
 </script>
 </body>
 </html>
