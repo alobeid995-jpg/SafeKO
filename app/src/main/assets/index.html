@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Safe</title>
+<style>
+:root{--bg:#0f2a52;--card:#fff;--ink:#14213d;--gold:#f2b632;--mut:#6b7280;--line:#e5e7eb;--bad:#c0392b}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f4ef;color:var(--ink)}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+h1{margin:0;font-size:22px}
+.lock{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:16px}
+.box{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:380px;text-align:center}
+.box .ic{font-size:44px}
+input,textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;font-size:16px;margin:6px 0;background:#fff;color:var(--ink)}
+button{border:0;border-radius:12px;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer}
+.pri{background:var(--bg);color:#fff;width:100%}
+.gold{background:var(--gold);color:var(--ink)}
+.ghost{background:#eef0f4;color:var(--ink)}
+.danger{background:#fdecea;color:var(--bad)}
+.err{color:var(--bad);font-size:14px;min-height:20px}
+.hint{color:var(--mut);font-size:13px}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.item{background:var(--card);border-radius:14px;padding:14px;margin:8px 0;border:1px solid var(--line)}
+.item h3{margin:0 0 2px;font-size:16px}
+.item .u{color:var(--mut);font-size:14px;word-break:break-all}
+.pw{font-family:ui-monospace,Consolas,monospace;font-size:15px;margin:6px 0;word-break:break-all}
+.item .row button{padding:8px 12px;font-size:13px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:9}
+.modal.on{display:flex}
+.sheet{background:#fff;width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:18px;max-height:92vh;overflow:auto}
+.hide{display:none!important}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:20}
+.toast.on{opacity:1}
+label.opt{font-size:14px;margin-right:12px}
+</style>
+</head>
+<body>
+
+<div id="lockScreen" class="lock">
+  <div class="box">
+    <div class="ic">🔐</div>
+    <h1 id="lockTitle">Safe</h1>
+    <p class="hint" id="lockHint"></p>
+    <input id="mp" type="password" placeholder="Master password" autocomplete="off">
+    <input id="mp2" type="password" placeholder="Repeat master password" autocomplete="off" class="hide">
+    <div class="err" id="lockErr"></div>
+    <button class="pri" id="lockBtn">Unlock</button>
+    <p class="hint" id="lockNote"></p>
+    <p class="hint" style="margin-top:14px;letter-spacing:1px"><b>KO</b> · by Khalid O</p>
+  </div>
+</div>
+
+<div id="app" class="hide">
+  <div class="wrap">
+    <header>
+      <h1>🔐 Safe</h1>
+      <div class="row">
+        <button class="gold" id="addBtn">+ Add</button>
+        <button class="ghost" id="menuBtn">⋯</button>
+      </div>
+    </header>
+    <input id="search" placeholder="Search…" autocomplete="off">
+    <div id="list"></div>
+    <p class="hint" id="empty">Nothing saved yet. Tap “+ Add”.</p>
+  </div>
+</div>
+
+<div class="modal" id="editModal">
+  <div class="sheet">
+    <h2 id="editTitle" style="margin-top:0">Add entry</h2>
+    <input id="fName" placeholder="Name (e.g. TechClassHub)" autocomplete="off">
+    <input id="fUser" placeholder="Email / username" autocomplete="off">
+    <input id="fPass" placeholder="Password" autocomplete="off">
+    <div class="row" style="margin:6px 0">
+      <button class="ghost" id="genBtn">Generate</button>
+      <label class="opt"><input type="checkbox" id="oSym" checked style="width:auto;margin:0 4px 0 0">Symbols</label>
+      <input id="oLen" type="number" value="16" min="8" max="64" style="width:80px;margin:0">
+    </div>
+    <textarea id="fNotes" rows="2" placeholder="Notes (optional)"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="pri" id="saveBtn" style="flex:1">Save</button>
+      <button class="ghost" id="cancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="menuModal">
+  <div class="sheet">
+    <h2 style="margin-top:0">Menu</h2>
+    <div class="row" style="flex-direction:column">
+      <button class="ghost" id="exportBtn">Export encrypted backup</button>
+      <button class="ghost" id="importBtn">Import backup</button>
+      <button class="ghost" id="chgBtn">Change master password</button>
+      <button class="ghost" id="lockNow">Lock now</button>
+      <button class="danger" id="wipeBtn">Erase everything</button>
+      <button class="ghost" id="menuClose">Close</button>
+    </div>
+    <input type="file" id="importFile" accept=".json,application/json" class="hide">
+  </div>
+</div>
+
+<div class="modal" id="askModal">
+  <div class="sheet">
+    <h2 id="askTitle" style="margin-top:0"></h2>
+    <input id="ask1" type="password" autocomplete="off">
+    <input id="ask2" type="password" autocomplete="off" class="hide">
+    <div class="row" style="margin-top:8px">
+      <button class="pri" id="askOk" style="flex:1">OK</button>
+      <button class="ghost" id="askNo">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY='safe_vault_v1';
+const enc=new TextEncoder(), dec=new TextDecoder();
+let vault=null, cryptoKey=null, salt=null, idleTimer=null, editId=null;
+const $=id=>document.getElementById(id);
+
+function b64(buf){const a=new Uint8Array(buf);let s='';for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s)}
+function unb64(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+async function derive(pw,s){
+  const m=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:s,iterations:310000,hash:'SHA-256'},m,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function seal(){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},cryptoKey,enc.encode(JSON.stringify(vault)));
+  return {v:1,salt:b64(salt),iv:b64(iv),data:b64(ct)};
+}
+async function save(){localStorage.setItem(KEY,JSON.stringify(await seal()))}
+async function openBlob(blob,pw){
+  const s=unb64(blob.salt), k=await derive(pw,s);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(blob.iv)},k,unb64(blob.data));
+  return {k,s,v:JSON.parse(dec.decode(pt))};
+}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1800)}
+function uid(){return crypto.getRandomValues(new Uint32Array(2)).join('-')}
+
+/* ---------- lock screen ---------- */
+function showLock(){
+  vault=null;cryptoKey=null;
+  $('app').classList.add('hide');$('lockScreen').classList.remove('hide');
+  $('mp').value='';$('mp2').value='';$('lockErr').textContent='';
+  const has=!!localStorage.getItem(KEY);
+  $('mp2').classList.toggle('hide',has);
+  $('lockTitle').textContent=has?'Safe':'Create your Safe';
+  $('lockBtn').textContent=has?'Unlock':'Create';
+  $('lockHint').textContent=has?'Enter your master password.':'Choose a strong master password.';
+  $('lockNote').textContent=has?'':'If you forget it, nobody can recover your data — not even me. Export a backup and keep it somewhere safe.';
+  closeModals();
+}
+$('lockBtn').onclick=async()=>{
+  const pw=$('mp').value, err=$('lockErr');err.textContent='';
+  const has=localStorage.getItem(KEY);
+  try{
+    if(has){
+      const r=await openBlob(JSON.parse(has),pw);
+      cryptoKey=r.k;salt=r.s;vault=r.v;
+    }else{
+      if(pw.length<10){err.textContent='Use at least 10 characters.';return}
+      if(pw!==$('mp2').value){err.textContent='Passwords do not match.';return}
+      salt=crypto.getRandomValues(new Uint8Array(16));
+      cryptoKey=await derive(pw,salt);vault={items:[]};await save();
+    }
+    $('lockScreen').classList.add('hide');$('app').classList.remove('hide');
+    render();bump();
+  }catch(e){err.textContent='Wrong master password.'}
+};
+$('mp').addEventListener('keydown',e=>{if(e.key==='Enter')$('lockBtn').click()});
+$('mp2').addEventListener('keydown',e=>{if(e.key==='Enter')$('lockBtn').click()});
+
+/* ---------- auto-lock ---------- */
+function bump(){clearTimeout(idleTimer);if(vault)idleTimer=setTimeout(showLock,2*60*1000)}
+['click','keydown','touchstart','scroll'].forEach(ev=>document.addEventListener(ev,bump,{passive:true}));
+if(!window.Android)document.addEventListener('visibilitychange',()=>{if(document.hidden&&vault)showLock()});
+
+/* ---------- list ---------- */
+function render(){
+  const q=$('search').value.trim().toLowerCase();
+  const list=$('list');list.innerHTML='';
+  const items=vault.items.filter(i=>!q||(i.name+i.user+i.notes).toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  $('empty').classList.toggle('hide',vault.items.length>0);
+  items.forEach(it=>{
+    const d=document.createElement('div');d.className='item';
+    const h=document.createElement('h3');h.textContent=it.name;
+    const u=document.createElement('div');u.className='u';u.textContent=it.user||'';
+    const p=document.createElement('div');p.className='pw';p.textContent='••••••••••';
+    let shown=false;
+    const row=document.createElement('div');row.className='row';
+    const mk=(t,cls,fn)=>{const b=document.createElement('button');b.textContent=t;b.className=cls;b.onclick=fn;row.appendChild(b);return b};
+    const showB=mk('Show','ghost',()=>{shown=!shown;p.textContent=shown?it.pass:'••••••••••';showB.textContent=shown?'Hide':'Show'});
+    mk('Copy password','ghost',()=>copy(it.pass,'Password copied'));
+    if(it.user)mk('Copy user','ghost',()=>copy(it.user,'Copied'));
+    mk('Edit','ghost',()=>openEdit(it));
+    d.append(h,u,p);
+    if(it.notes){const n=document.createElement('div');n.className='hint';n.textContent=it.notes;d.appendChild(n)}
+    d.appendChild(row);list.appendChild(d);
+  });
+}
+$('search').oninput=render;
+async function copy(t,msg){
+  try{
+    if(window.Android)Android.copy(t);else await navigator.clipboard.writeText(t);
+    toast(msg+' (clears in 30s)');
+    setTimeout(()=>{if(window.Android)Android.copy('');else navigator.clipboard.writeText('').catch(()=>{})},30000);
+  }catch(e){toast('Copy failed — use Show')}
+}
+
+/* ---------- add / edit ---------- */
+function openEdit(it){
+  editId=it?it.id:null;
+  $('editTitle').textContent=it?'Edit entry':'Add entry';
+  $('fName').value=it?it.name:'';$('fUser').value=it?it.user:'';
+  $('fPass').value=it?it.pass:'';$('fNotes').value=it?it.notes:'';
+  if(it&&!$('cancelBtn').dataset.del){
+    const b=document.createElement('button');b.className='danger';b.textContent='Delete';b.id='delBtn';
+    b.onclick=async()=>{if(confirm('Delete this entry?')){vault.items=vault.items.filter(x=>x.id!==editId);await save();closeModals();render()}};
+    $('cancelBtn').parentNode.appendChild(b);$('cancelBtn').dataset.del='1';
+  }
+  if(!it&&$('delBtn')){$('delBtn').remove();delete $('cancelBtn').dataset.del}
+  $('editModal').classList.add('on');
+}
+$('addBtn').onclick=()=>openEdit(null);
+$('cancelBtn').onclick=closeModals;
+$('saveBtn').onclick=async()=>{
+  const name=$('fName').value.trim();
+  if(!name){toast('Enter a name');return}
+  const rec={id:editId||uid(),name,user:$('fUser').value.trim(),pass:$('fPass').value,notes:$('fNotes').value.trim()};
+  const i=vault.items.findIndex(x=>x.id===rec.id);
+  if(i>=0)vault.items[i]=rec;else vault.items.push(rec);
+  await save();closeModals();render();toast('Saved');
+};
+$('genBtn').onclick=()=>{
+  const len=Math.min(64,Math.max(8,+$('oLen').value||16));
+  let set='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  if($('oSym').checked)set+='!@#$%^&*-_=+?';
+  let out='';const lim=Math.floor(4294967296/set.length)*set.length;
+  while(out.length<len){const r=crypto.getRandomValues(new Uint32Array(1))[0];if(r<lim)out+=set[r%set.length]}
+  $('fPass').value=out;
+};
+function closeModals(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'))}
+
+/* ---------- menu ---------- */
+$('menuBtn').onclick=()=>$('menuModal').classList.add('on');
+$('menuClose').onclick=closeModals;
+$('lockNow').onclick=showLock;
+$('exportBtn').onclick=async()=>{
+  const json=JSON.stringify(await seal());
+  const name='safe-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  if(window.Android){
+    toast(Android.saveFile(name,json)?'Saved to Downloads: '+name:'Could not save backup');
+  }else{
+    const blob=new Blob([json],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=name;a.click();toast('Backup downloaded (encrypted)');
+  }
+  closeModals();
+};
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const blob=JSON.parse(await f.text());
+    const ans=await ask('Backup password','Master password of that backup');if(!ans)return;
+    const pw=ans[0];
+    const r=await openBlob(blob,pw);
+    const ids=new Set(vault.items.map(i=>i.id));let n=0;
+    r.v.items.forEach(i=>{if(!ids.has(i.id)){vault.items.push(i);n++}});
+    await save();render();closeModals();toast(n+' entries imported');
+  }catch(err){toast('Import failed — wrong password or file')}
+  e.target.value='';
+};
+function ask(title,ph1,ph2){
+  return new Promise(res=>{
+    closeModals();
+    const a=$('ask1'),b=$('ask2');
+    $('askTitle').textContent=title;
+    a.value='';b.value='';a.placeholder=ph1;b.placeholder=ph2||'';
+    b.classList.toggle('hide',!ph2);
+    $('askModal').classList.add('on');
+    const done=v=>{$('askModal').classList.remove('on');a.value='';b.value='';res(v)};
+    $('askOk').onclick=()=>done([a.value,b.value]);
+    $('askNo').onclick=()=>done(null);
+  });
+}
+$('chgBtn').onclick=async()=>{
+  const r=await ask('Change master password','New master password (10+ characters)','Repeat new password');
+  if(!r)return;
+  if(r[0].length<10){toast('Too short');return}
+  if(r[0]!==r[1]){toast('Did not match');return}
+  salt=crypto.getRandomValues(new Uint8Array(16));
+  cryptoKey=await derive(r[0],salt);await save();toast('Master password changed');
+};
+$('wipeBtn').onclick=()=>{
+  if(confirm('Erase ALL saved passwords on this device? This cannot be undone.')&&confirm('Really erase everything?')){
+    localStorage.removeItem(KEY);showLock();
+  }
+};
+
+showLock();
+</script>
+</body>
+</html>
